@@ -1,0 +1,376 @@
+---
+title: "Applied Econometrics - Mortgage Loan Data"
+author: "Nathan Foale"
+date: "2024-03-21"
+output: html_document
+---
+
+```{r}
+
+library(haven)
+library(ggplot2)
+
+```
+
+This paper will be looking to test for discrimination on the basis of race in the mortgage loan market. 
+
+The binary variable to be explained is approve, which is equal to 1 if a mortgage loan to an individual was approved. 
+
+The key explanatory variable is nonwhite, a dummy variable equal to 1 if the applicant was black or hispanic and 0 if the applicant was white.
+
+Variable (obrat) which will be used is a measure of other obligations as a percentage of income. A higher value suggests a higher proportion of income being allocated to other debt obligations. 
+
+Other explanatory variables will also be included in the linear and nonlinear regression models:
+
+**Binary explanatory variables:** male, (unem) unemployed, (pubrec) public records, (cosign) if the mortgage is cosigned by another individual
+
+**Continuous explanatory variables:** (hrat) housing expense ratio, (loanprc) loan to price ratio
+
+**Discrete explanatory variables:** (chist) credit card history (dep) number of dependants, (sch) number of school aged children
+
+To test for discrimination on the basis of race in the mortgage loan market, a linear probability model can be used:
+
+\(\text{approve} = \beta_0 + \beta_1(\text{nonwhite}) + u \), 
+where u represents other factors that influence loan approvals.
+
+**What is the interpretation of β1 in the model above?**
+**If there is discrimination against minorities, and the appropriate factors have been controlled for, what is the expected sign of β1?**
+
+The interpretation of β1 in the model above is the average difference in probability of being approved for a loan between white and non-white applicants, holding all other factors constant. If there is discrimination in the model, we expect β1 < 0 which would imply non-white applicants have a lower probability of being approved for a loan than white applicants, all else being equal. 
+
+**Regress approve on nonwhite and report the results**
+
+First load the data:
+
+```{r}
+file_path <- "/Users/nathanfoale/Desktop/data/loanapp.dta"
+loan_data <- read_dta(file_path)
+```
+
+Then generate the non-white variable:
+
+```{r}
+loan_data$nonwhite <- ifelse(loan_data$black == 1 | loan_data$hispan == 1, 1, 0)
+```
+
+The regression equation is:
+\(\text{approve} = \beta_0 + \beta_1(\text{nonwhite}) + u \)
+
+Run the regression of approval on non-white and display the regression output:
+
+```{r}
+model <- lm(approve ~ nonwhite, data = loan_data)
+summary(model)
+```
+
+
+**Interpret the coefficient on nonwhite.**
+
+The coefficient of non-white is the average difference in the probability of receiving a loan against their white counterparts, all else being equal. In this case it is -0.20, representing a 20.0 percentage point decrease in the probability of a loan approval compared with being white. 
+
+**Is it statistically significantly different from zero?**
+
+Null hypothesis \( H_0 : \beta_1 = 0\)
+Alternative hypothesis \(H_1: \beta_1 \neq 0\)
+
+```{r}
+
+#pull coefficients and standard errors from regression output
+
+coef_nonwhite <- coef(model)["nonwhite"]
+se_nonwhite <- sqrt(vcov(model)["nonwhite", "nonwhite"])
+
+
+#Calc T-statistic
+t_stat <- coef_nonwhite / se_nonwhite
+
+df <- length(model$residuals) - length(coef(model))
+
+# significance level of alpha
+alpha <- 0.05
+
+# calc T-critical value
+critical_value <- qt(1 - alpha/2, df)
+
+# output the T-statistic and T-critical value
+print(paste("t-statistic:", round(t_stat, 3)))
+print(paste("Critical value:", round(critical_value, 3)))
+```
+
+Rejection criteria:
+
+If \( |\text{T-stat}| > |\text{T-crit}| \), then we reject \( H_0 \).
+
+```{r}
+if (abs(t_stat) > critical_value) {
+  print("Reject the null hypothesis (β1 = 0)")
+} else {
+  print("Fail to reject the null hypothesis (β1 = 0)")
+}
+```
+
+Thus we reject the null hypothesis that there is no effect of being non-white on being approved for a loan. 
+
+
+**Estimate equation (1) by adding variables hrat, obrat, loanprc, unem, male, dep, sch, cosign, chist, pubrec, mortlat1, mortlat2, and vr as explanatory variables and report the results. **
+
+```{r}
+full_model <- lm(approve ~ nonwhite + hrat + obrat + loanprc + unem + male + dep + sch + cosign + chist + pubrec + mortlat1 + mortlat2 + vr, data = loan_data)
+
+summary(full_model)
+```
+
+**What happens to the coefficient on nonwhite?**
+
+When adding more variables into the model, the coefficient of non-white reduces from -0.20 to -0.13, suggesting a 13 percentage point decrease in the probability of a loan approval compared with being white. 
+
+**Is there still evidence of discrimination against non-whites ?**
+
+Looking at the model shows there is still evidence of discrimination against non-whites. The coefficient of non-white after adding in more variables remains statistically significant, as evident by the small p-value of 0.00. Even after controlling for additional factors, being non-white continues to have a significant negative impact on the probability of loan approval. Hence, the findings suggest persistent evidence of discrimination against non-white applicants in the mortgage loan approval process. 
+
+**Now, if we allow the effect of race to interact with the variable measuring other obligations as a percentage of income (obrat), then how will the previous regression equation change? **
+**Estimate this new regression equation.**
+
+
+The new model will look like:
+
+\(\begin{align*}
+\text{approve} &= \beta_0 + \beta_1(\text{nonwhite}) + \beta_2(\text{hrat}) + \beta_3(\text{obrat})  + \beta_4(\text{nonwhite} \times \text{obrat}) + \beta_5(\text{loanprc}) + \beta_6(\text{unem}) + \beta_7(\text{male}) \\
+&\quad + \beta_8(\text{dep}) + \beta_9(\text{sch}) + \beta_{10}(\text{cosign}) + \beta_{11}(\text{chist}) + \beta_{12}(\text{pubrec}) + \beta_{13}(\text{mortlat1}) + \beta_{14}(\text{mortlat2}) + \beta_{15}(\text{vr}) + u
+\end{align*}\)
+
+Regression allowing the effect of race to interact with obrat variable:
+
+```{r}
+model_interaction <- lm(approve ~ nonwhite + hrat + obrat + nonwhite:obrat + loanprc + unem + male + dep + sch + cosign + chist + pubrec + mortlat1 + mortlat2 + vr, data = loan_data)
+
+
+summary(model_interaction)
+```
+
+**Is the interaction term statistically significantly different from zero?**
+
+Null hypothesis \( H_0 : \beta_4 = 0\) 
+
+Alternative hypothesis \(H_1: \beta_4 \neq 0\)
+
+```{r}
+coef_interaction <- coef(model_interaction)["nonwhite:obrat"]
+se_interaction <- sqrt(vcov(model_interaction)["nonwhite:obrat", "nonwhite:obrat"])
+
+df_interaction <- length(model_interaction$residuals) - length(coef(model_interaction))
+
+# Calc t-statistic
+t_stat_interaction <- coef_interaction / se_interaction
+
+# Significance level of alpha
+alpha <- 0.05
+
+# calc critical value
+t_crit <- qt(1 - alpha / 2, df_interaction)
+
+# t-statistic and critical value
+print(paste("t-statistic:", round(t_stat_interaction, 3)))
+print(paste("Critical value (two-tailed):", round(t_crit, 3)))
+```
+
+Rejection criteria:
+
+If \( |\text{T-stat}| > |\text{T-crit}| \), then we reject \( H_0 \).
+
+```{r}
+if (abs(t_stat_interaction) > t_crit) {
+  print("Reject the null hypothesis (β4 = 0)")
+} else {
+  print("Fail to reject the null hypothesis (β4 = 0))")
+}
+```
+
+Thus we reject the null hypothesis that the coefficient of the interaction term β4 is equal to zero, suggesting that the interaction between the nonwhite and obrat variables has a statistically significant effect on the approval of mortgage loans.
+
+**Using the previous model, derive the marginal effect of being nonwhite on the probability of approval for   someone with a median value of obrat. Report the estimated effect and provide interpretation.** 
+**Also obtain a 95% confidence interval for this effect.**
+
+To derive the marginal effect of being non-white on the probability of approval for someone with a median value of obrat, the coefficients from the previous model will be used.
+
+\(\text{Marginal effect} = \frac{\partial \hat{p}}{\partial \text{nonwhite}} = \beta_1 + \hat{\beta}_4 \times \text{Median obrat}\)
+
+where \(\hat{p}\)  is the estimated probability of loan approval,
+\(\beta_1\) is the coefficient of nonwhite.
+\(\beta_3\) is the coefficient of obrat, and 
+\(\hat{\beta}_4\) is the coefficient of the interaction term nonwhite:obrat.
+
+
+```{r}
+# calc the median value of obrat
+median_obrat <- median(loan_data$obrat, na.rm = TRUE)
+
+# coefficients from  model
+coef_nonwhite <- coef(model_interaction)["nonwhite"]
+coef_obrat <- coef(model_interaction)["obrat"]
+coef_interaction <- coef(model_interaction)["nonwhite:obrat"]
+
+# marginal effect calc
+marginal_effect <- coef_nonwhite + coef_interaction * median_obrat
+
+print(paste("Marginal effect of being nonwhite on the probability of approval:", round(marginal_effect, 4)))
+```
+
+This marginal effect represents the change in the probability of loan approval associated with being nonwhite, holding all other variables constant.
+
+**Obtain a 95% confidence interval for this effect:**
+
+```{r}
+# calc the standard error of the marginal effect
+se_marginal_effect <- sqrt((vcov(model_interaction)["nonwhite", "nonwhite"]) + 
+                            (median_obrat^2 * vcov(model_interaction)["nonwhite:obrat", "nonwhite:obrat"]) +
+                            (2 * median_obrat * vcov(model_interaction)["nonwhite", "nonwhite:obrat"]))
+
+# Calc t-statistic
+t_stat_marginal_effect <- marginal_effect / se_marginal_effect
+
+# Degrees of freedom
+df_marginal_effect <- length(model_interaction$residuals) - length(coef(model_interaction))
+
+# critical value (two-tailed)
+t_crit_marginal_effect <- qt(1 - (0.05 / 2), df_marginal_effect)
+
+# 95% confidence interval
+lower_ci <- marginal_effect - qt(0.975, df_marginal_effect) * se_marginal_effect
+upper_ci <- marginal_effect + qt(0.975, df_marginal_effect) * se_marginal_effect
+
+# results
+
+print(paste("95% Confidence Interval:", round(lower_ci, 4), "-", round(upper_ci, 4)))
+```
+
+This confidence interval suggests that we are 95% confident the marginal effect of being nonwhite on the probability of loan approval lies between -0.16 and -0.0822.
+
+```{r}
+# Check if the t-statistic is greater than the critical value
+if (abs(t_stat_marginal_effect) > t_crit_marginal_effect) {
+  print("The marginal effect is statistically significant.")
+} else {
+  print("The marginal effect is not statistically significant.")
+}
+```
+
+As \( |\text{T-stat}| > |\text{T-crit}| \),it indicates that the marginal effect is statistically significant at the 5% significance level, thus we have sufficient evidence to conclude that being nonwhite has a significant impact on the probability of loan approval for individuals with a median value of obrat.
+
+
+**Estimate a probit and logit model of approve on nonwhite and report the results**
+**Write the expression for the marginal effect of being nonwhite on the probability of loan approval using    both probit and logit.**
+**Estimate this marginal effect using logit and probit.**
+**How do these compare with the linear probability   estimates?**
+
+
+Probit Marginal Effect = \(\frac{\partial P_i}{\partial X_k} = \frac{\partial \Phi(X_iB)}{\partial X_k} = \Phi(X_iB) \cdot B_k\)
+
+
+Logit Marginal Effect = \(\frac{\partial P_i}{\partial X_k} = \frac{\partial Λ(X_iB)}{\partial X_k} = Λ(X_iB) \cdot B_k\)
+
+
+
+```{r}
+mfxboot <- function(modform, dist, data, boot = 1000, digits = 3) {
+  x <- glm(modform, family = binomial(link = dist), data)
+  
+  pdf <- ifelse(dist == "probit",
+                dnorm(predict(x, type = "link")),
+                dlogis(predict(x, type = "link")))
+  marginal_effect <- coef(x)["nonwhite"] * pdf
+  return(mean(marginal_effect))
+}
+
+linear_model <- lm(approve ~ nonwhite, data = loan_data)
+
+# probit model
+probit_model <- glm(approve ~ nonwhite, data = loan_data, family = binomial(link = "probit"))
+
+#  logit model
+logit_model <- glm(approve ~ nonwhite, data = loan_data, family = binomial(link = "logit"))
+
+# coefficients
+beta_hat_probit <- coef(probit_model)["nonwhite"]
+beta_hat_logit <- coef(logit_model)["nonwhite"]
+
+#  marginal effects 
+marginal_effects_probit <- mfxboot(modform = approve ~ nonwhite, dist = "probit", data = loan_data)
+marginal_effects_logit <- mfxboot(modform = approve ~ nonwhite, dist = "logit", data = loan_data)
+
+# RESULTS
+cat("Marginal effect of being nonwhite (Probit):", round(marginal_effects_probit, digits = 3), "\n")
+cat("Marginal effect of being nonwhite (Logit):", round(marginal_effects_logit, digits = 3), "\n")
+
+```
+
+For the probit model, the marginal effect of being nonwhite is -0.129, indicating that being nonwhite is associated with a decrease of approximately 0.129 percentage points in the probability of loan approval, relative to white applicants, all else being equal.
+
+For the logit model, the marginal effect of being nonwhite is -0.117, indicating that being nonwhite is associated with a decrease of approximately 0.117percentage points in the probability of loan approval, relative to white applicants, all else being equal.
+
+Comparing these results with the linear probability estimate -0.2006, we observe that the marginal effects from both the probit and logit models are slightly smaller in magnitude which is expected as the linear probability model assumes constant marginal effects, while the probit and logit models capture the nonlinear relationship between the regressor variables and the probability of approval. The direction of the effect remains consistent across all models, indicating a lower likelihood of loan approval for non-white applicants compared to white applicants.
+
+**Add the variables hrat, obrat, loanprc, unem, male, dep, sch, cosign, chist, pubrec, mortlat1, mortlat2,  and vr to the probit and logit models and report the results.**
+
+
+```{r}
+# probit model with added variables
+probit_model_additional <- glm(approve ~ nonwhite + hrat + obrat + loanprc + unem + male + dep + sch + cosign + chist + pubrec + mortlat1 + mortlat2 + vr, 
+                                data = loan_data, family = binomial(link = "probit"))
+
+# logit model with added variables
+logit_model_additional <- glm(approve ~ nonwhite + hrat + obrat + loanprc + unem + male + dep + sch + cosign + chist + pubrec + mortlat1 + mortlat2 + vr, 
+                               data = loan_data, family = binomial(link = "logit"))
+
+
+summary(probit_model_additional)
+summary(logit_model_additional)
+```
+
+**Is the coefficient on nonwhite statistically significantly different from zero? Is there statistical evidence of discrimination against nonwhites using these nonlinear models?**
+
+```{r}
+# Extract coefficient estimate / standard error for nonwhite
+beta_hat_nonwhite <- coef(probit_model_additional)["nonwhite"]
+se_nonwhite <- sqrt(vcov(probit_model_additional)["nonwhite", "nonwhite"])
+
+# Calc t-statistic
+t_stat_nonwhite <- beta_hat_nonwhite / se_nonwhite
+
+# Degrees of freedom
+df <- nrow(loan_data) - length(coef(probit_model_additional))
+
+# Critical value for two-tailed test
+t_crit <- qt(1 - (0.05 / 2), df)
+
+# Test 
+if (abs(t_stat_nonwhite) > t_crit) {
+  print("Reject the null hypothesis (coefficient on nonwhite is statistically significant)")
+} else {
+  print("Fail to reject the null hypothesis (coefficient on nonwhite is not statistically significant)")
+}
+```
+
+As \( |\text{T-stat}| > |\text{T-crit}| \) we can conclude that given this data set, there is statistical evidence of discrimination against non-whites.
+
+**Conclusion**
+
+This paper examines if discrimination exists in the mortgage loan market based on an applicants race.
+
+Firstly, a linear probability model was employed to test for discrimination, with the coefficient β1 representing the average difference in the probability of loan approval between white and non-white applicants. The sign of β1 was negative, indicating a lower probability of approval for non-white applicants.
+
+The regression of approval on only the non-white regressor yielded a significant negative coefficient of -0.2006, suggesting discrimination against non-white applicants in loan approval. Subsequently, additional regressors were added to the model to control for other factors influencing loan approval.
+
+Even after controlling for additional variables, the coefficient for non-white is still significant -0.13, indicating persistent discrimination. Furthermore, an interaction term between non-white and obrat was introduced to examine how the effect of race varies with other obligations.
+
+The regression including the interaction term showed that it is statistically significant, suggesting that the impact of race on loan approval varies depending on an applicants other obligations. Moreover, the marginal effect of being non-white on loan approval, accounting for median obrat, is estimated and found to be statistically significant -0.1211 with a 95% confidence interval.
+
+Probit and logit models were employed to assess discrimination using nonlinear approaches. The marginal effects of being non-white from these models are compared with the linear probability estimates, showing slightly smaller magnitudes but consistent directionality.
+
+Finally, the paper extends the analysis by including additional regressors in the probit and logit models. The coefficient for non-white remains statistically significant in both models, providing further evidence of discrimination against non-white applicants in the mortgage loan market.
+
+In conclusion, this paper provides robust evidence of discrimination against non-white applicants in mortgage loan approval, as evident by significant coefficients across different models and methodologies.
+
+It would be prudent to recognize that while this reveals statistical evidence of discrimination against non-whites in the mortgage loan market based on the given dataset, it is essential to consider the potential influence of unobserved variables or factors not captured in the analysis, thus highlighting the need for cautious interpretation of the findings.
+
+
